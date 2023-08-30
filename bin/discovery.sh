@@ -20,6 +20,7 @@ TMPLDIR="${TMPLDIR:-"/etc/templates"}"
 TEMPLATE="${TMPLDIR}/pgpool.conf.tmpl"
 STATEDIR="${STATEDIR:-"/etc/pgpool/nodes"}"
 REFRESH_INTERVAL="${REFRESH_INTERVAL:-60}"
+STAY_IN_REGION="${STAY_IN_REGION:-"true"}"
 
 export STATEDIR
 
@@ -33,6 +34,10 @@ if [ -z "${PRIMARY_INSTANCE_PREFIX}" ]; then
 fi
 
 get_metadata
+
+if [ "${STAY_IN_REGION}" = "false" ]; then
+  REGION='*'
+fi
 
 # set up passwordless pcp auth
 if [ -z "${PCP_PASSWORD}" ]; then
@@ -61,7 +66,7 @@ while true; do
     gcloud \
       --project "${PROJECT_ID}" \
       sql instances list \
-      --filter "name~^${PRIMARY_INSTANCE_PREFIX} AND state:RUNNABLE AND instanceType:CLOUD_SQL_INSTANCE" \
+      --filter "region:${REGION} AND name~^${PRIMARY_INSTANCE_PREFIX} AND state:RUNNABLE AND instanceType:CLOUD_SQL_INSTANCE" \
       --format 'csv[no-heading](name,ip_addresses.filter("type:PRIVATE").*extract(ip_address).flatten())'
   ); do
     log error "Could not successfully look up primary instance matching ${PRIMARY_INSTANCE_PREFIX}, sleeping 5s and re-looping"
@@ -103,7 +108,7 @@ while true; do
       --project "${PROJECT_ID}" \
       sql instances list \
       --sort-by serverCaCert.createTime \
-      --filter "masterInstanceName:${PROJECT_ID}:${primary_name} AND state:RUNNABLE" \
+      --filter "region:${REGION} AND masterInstanceName:${PROJECT_ID}:${primary_name} AND state:RUNNABLE" \
       --format 'csv[no-heading](name,ip_addresses.filter("type:PRIVATE").*extract(ip_address).flatten())'
   )
 
